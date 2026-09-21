@@ -131,10 +131,16 @@ class PortalTrigger:
             if self.stopped.is_set():
                 return
             self.bus = await asyncio.wait_for(MessageBus().connect(), 5)
-            # Start the portal then pin its unique name, rejecting unrelated signals.
-            await self._call(destination="org.freedesktop.DBus", path="/org/freedesktop/DBus",
-                             interface="org.freedesktop.DBus", member="StartServiceByName",
-                             signature="su", body=[DESTINATION, 0])
+            # An already running portal need not have a D-Bus activation file.
+            # StartServiceByName can fail in that case even though it owns the name.
+            running = await self._call(destination="org.freedesktop.DBus", path="/org/freedesktop/DBus",
+                                       interface="org.freedesktop.DBus", member="NameHasOwner",
+                                       signature="s", body=[DESTINATION])
+            if not running.body[0]:
+                await self._call(destination="org.freedesktop.DBus", path="/org/freedesktop/DBus",
+                                 interface="org.freedesktop.DBus", member="StartServiceByName",
+                                 signature="su", body=[DESTINATION, 0])
+            # Pin its unique name, rejecting unrelated signals.
             owner = await self._call(destination="org.freedesktop.DBus", path="/org/freedesktop/DBus",
                                      interface="org.freedesktop.DBus", member="GetNameOwner",
                                      signature="s", body=[DESTINATION])

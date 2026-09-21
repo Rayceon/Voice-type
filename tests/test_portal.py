@@ -21,13 +21,54 @@ def test_portal_unsupported_input_is_explicit(value):
         preferred_trigger(value)
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux portal backend")
+@pytest.mark.parametrize("running", [False, True])
+def test_portal_activates_only_when_not_running(monkeypatch, running):
+    from types import SimpleNamespace
+    from dbus_next.aio import MessageBus
+    calls = []
+    disconnected = []
+    listener = PortalTrigger("f8", lambda _: None, lambda _: None)
+
+    async def connect(_):
+        return SimpleNamespace(add_message_handler=lambda _: None,
+                               disconnect=lambda: disconnected.append(True))
+
+    async def call(**kwargs):
+        calls.append(kwargs["member"])
+        if kwargs["member"] == "NameHasOwner":
+            return SimpleNamespace(body=[running])
+        if kwargs["member"] == "GetNameOwner":
+            return SimpleNamespace(body=[":1.42"])
+        return SimpleNamespace(body=[])
+
+    async def request(*args):
+        # Stop after discovery; full authorization is covered by the private bus test.
+        assert listener.owner == ":1.42"
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(MessageBus, "connect", connect)
+    monkeypatch.setattr(MessageBus, "__init__", lambda self: None)
+    monkeypatch.setattr(listener, "_call", call)
+    monkeypatch.setattr(listener, "_request", request)
+    asyncio.run(listener._serve())
+    expected = ["NameHasOwner"] + ([] if running else ["StartServiceByName"]) + ["GetNameOwner"]
+    assert calls[:len(expected)] == expected
+    assert calls.count("StartServiceByName") == (0 if running else 1)
+    assert disconnected == [True]
+
+
 @pytest.mark.skipif(sys.platform != "linux" or not shutil.which("dbus-daemon"),
                     reason="requires private Linux D-Bus daemon")
 @pytest.mark.parametrize("mode", ["normal", "deny", "portal_close", "portal_restart", "cancel_prompt"])
-def test_portal_wire_authorization_events_and_cleanup(monkeypatch, mode):
+def test_portal_wire_authorization_events_and_cleanup(monkeypatch, tmp_path, mode):
     from dbus_next import Message, MessageType, Variant
     from dbus_next.aio import MessageBus
     from voicetype.portal_trigger import DESTINATION
+    # Do not inherit installed desktop service files: the fake portal owns its
+    # bus name directly, just as it does on a minimal CI runner.
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.setenv("XDG_DATA_DIRS", str(tmp_path))
     daemon = subprocess.Popen(["dbus-daemon", "--session", "--nofork", "--print-address=1"],
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     monkeypatch.setenv("DBUS_SESSION_BUS_ADDRESS", daemon.stdout.readline().strip())

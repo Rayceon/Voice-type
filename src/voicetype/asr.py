@@ -160,9 +160,13 @@ class QwenSession:
         self.api_key = ""
         self.ready.set()
         self.done.set()
-        if ws is not None:
-            # No blocking close handshake: cancellation must unblock the receive loop.
-            ws.abort()
-            ws.shutdown()
-        if self.reader and self.reader is not threading.current_thread():
-            self.reader.join(1)
+        try:
+            if ws is not None:
+                # Wake recv without destroying its descriptor. Closing it before
+                # the reader exits can remove the wakeup from macOS kqueue.
+                ws.abort()
+            if self.reader and self.reader is not threading.current_thread():
+                self.reader.join(1)
+        finally:
+            if ws is not None:
+                ws.shutdown()

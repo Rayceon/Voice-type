@@ -125,3 +125,19 @@ def test_connect_errors_never_expose_credentials(monkeypatch):
     assert "secret-key" not in str(error.value)
     assert session.api_key == ""
     session.close()
+
+
+def test_close_wakes_and_joins_reader_before_releasing_socket():
+    from types import SimpleNamespace
+    events = []
+    session = QwenSession(Settings(), "fake-key", lambda _: None)
+    session.ws = SimpleNamespace(abort=lambda: events.append("abort"),
+                                 shutdown=lambda: events.append("shutdown"))
+    session.reader = SimpleNamespace(join=lambda timeout: events.append("join"))
+    session.close()
+    assert events == ["abort", "join", "shutdown"]
+    assert session.ws is None
+    assert session.api_key == ""
+    assert session.ready.is_set() and session.done.is_set()
+    session.close()  # Repeat cancellation must not close the transport twice.
+    assert events.count("shutdown") == 1
