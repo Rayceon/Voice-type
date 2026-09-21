@@ -1,0 +1,14 @@
+include LICENSE README.md DESKTOP.md LEGACY.md SECURITY.md THIRD_PARTY.md pyproject.toml desktop_entry.py voice-type.spec
+include .gitignore .gitattributes
+include pyi_rth_portaudio.py requirements.txt requirements-apt.txt install-linux.sh
+recursive-include src/voicetype *.py
+recursive-include tests *.py
+recursive-include licenses *.txt *.md
+recursive-include .github/workflows *.yml
+exclude config.py voice_type.py run.sh probe_button.py
+prune .venv
+prune build
+prune dist
+prune .pytest_cache
+prune .codebase-memory
+global-exclude *.py[cod] .env .env.* *.pem *.key *.wav *.pcm

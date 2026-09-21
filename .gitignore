@@ -1,0 +1,31 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.env
+.env.*
+!.env.example
+*.wav
+*.pcm
+.codebase-memory/
+
+# Local credentials, user data and test output must not be published.
+*_api_key.txt
+*.pem
+*.key
+settings.json
+*.log
+.coverage
+htmlcov/
+.ruff_cache/
+.DS_Store
+Thumbs.db
+
+# Original machine-specific scripts are kept locally, not shipped with the app.
+/voice_type.py
+/config.py
+/run.sh
+/probe_button.py

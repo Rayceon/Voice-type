@@ -1,0 +1,4 @@
+# Python dependencies have one source of truth: pyproject.toml.
+# Run from the project directory: python -m pip install -r requirements.txt
+# Debian/Ubuntu system dependencies: requirements-apt.txt (NOT a pip file).
+.

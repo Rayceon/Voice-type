@@ -1,0 +1,66 @@
+name: Desktop checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  test-and-build:
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' requirements-apt.txt | xargs sudo apt-get install -y
+          sudo apt-get install -y xvfb
+      - if: runner.os == 'macOS'
+        run: brew install portaudio
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install ".[dev]"
+      - run: python -m pytest -q
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' sh -c 'VOICE_TYPE_TEST_DISPLAY="$DISPLAY" python -m pytest tests/test_x11.py -q'
+      - run: python -m build
+      - run: python -m twine check dist/*.whl dist/voice_type_desktop-*.tar.gz
+      - run: python tests/check_distribution.py dist
+      # Exercise the built wheel rather than only the source checkout.
+      - run: python -c "import glob, subprocess, sys; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', '--force-reinstall', *glob.glob('dist/*.whl')])"
+      - run: python -m voicetype.app --smoke-test
+      - run: pyinstaller --noconfirm voice-type.spec
+      - if: runner.os == 'Linux'
+        run: ./dist/VoiceType/VoiceType --check-audio
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a env QT_QPA_PLATFORM=xcb ./dist/VoiceType/VoiceType --smoke-test
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ./dist/VoiceType/VoiceType.exe -ArgumentList '--smoke-test' -PassThru -Wait
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+      - if: runner.os == 'macOS'
+        run: ./dist/VoiceType.app/Contents/MacOS/VoiceType --smoke-test
+      # GitHub artifact uploads do not preserve Unix modes/symlinks themselves.
+      # Archive the full app first so downloaded Linux/macOS bundles still run.
+      - if: runner.os == 'Linux'
+        run: tar -C dist -czf dist/VoiceType-Linux-${{ runner.arch }}-preview.tar.gz VoiceType
+      - if: runner.os == 'macOS'
+        run: ditto -c -k --sequesterRsrc --keepParent dist/VoiceType.app dist/VoiceType-macOS-${{ runner.arch }}-preview.zip
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/VoiceType -DestinationPath dist/VoiceType-Windows-${{ runner.arch }}-preview.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoiceType-${{ runner.os }}-preview
+          path: |
+            dist/*-preview.zip
+            dist/*-preview.tar.gz
+            dist/*.whl
+            dist/voice_type_desktop-*.tar.gz

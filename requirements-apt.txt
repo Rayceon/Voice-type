@@ -1,0 +1,8 @@
+# Debian/Ubuntu source installation: APT packages, not Python/PyPI packages.
+# Used by install-linux.sh. Bundled desktop previews carry PortAudio themselves.
+python3-venv
+libportaudio2
+libxcb-cursor0
+libxkbcommon-x11-0
+libegl1
+libopengl0

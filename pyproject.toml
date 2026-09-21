@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voice-type-desktop"
+version = "0.1.0a1"
+description = "Configurable push-to-talk dictation for your desktop"
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: End Users/Desktop",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+  "PySide6-Essentials>=6.7,<7", "sounddevice>=0.5,<1", "numpy>=1.24",
+  "soxr>=0.5,<1", "websocket-client>=1.8,<2", "certifi>=2024.2", "pynput>=1.8,<2",
+  "platformdirs>=4,<5", "keyring>=25,<26",
+  "dbus-next>=0.2.3,<0.3; sys_platform == 'linux'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "build>=1", "twine>=6", "pyinstaller>=6", "websockets>=13,<16"]
+
+[project.gui-scripts]
+voice-type-app = "voicetype.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
