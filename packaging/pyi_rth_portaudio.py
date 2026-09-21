@@ -1,4 +1,4 @@
-"""Resolve bundled PortAudio without Linux ldconfig/compiler development files."""
+"""Resolve bundled PortAudio without Linux compiler development files."""
 def _pyi_rthook():
     import ctypes.util
     from pathlib import Path

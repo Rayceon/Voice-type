@@ -26,5 +26,5 @@ build materials, and provide compliant ongoing access to those materials.
 Recheck the inventory when rebuilding: dependency versions are not pinned here.
 
 The source distribution includes this directory. Desktop bundles copy it into
-their resources alongside collected dependency metadata. See `THIRD_PARTY.md`
+their resources alongside collected dependency metadata. See [third-party notices](../docs/third-party.md)
 for remaining release checks; the current artifacts are local development previews.

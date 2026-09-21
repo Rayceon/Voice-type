@@ -1,5 +1,5 @@
 # Debian/Ubuntu source installation: APT packages, not Python/PyPI packages.
-# Used by install-linux.sh. Bundled desktop previews carry PortAudio themselves.
+# Used by scripts/install-linux.sh. Desktop previews carry PortAudio themselves.
 python3-venv
 libportaudio2
 libxcb-cursor0

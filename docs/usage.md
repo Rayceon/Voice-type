@@ -1,28 +1,38 @@
-# Voice Type Desktop（开发预览版）
+# Voice Type 使用与开发指南（开发预览版）
 
 将语音输入到桌面应用。独立 Python 包；不需要原作者的目录、Conda 环境或另一个代码仓。
 当前使用 Qwen Realtime ASR，需要自己的 DashScope API Key 和网络连接。
 
 ## 从源码安装
 
-Debian/Ubuntu 推荐在项目目录运行 `bash install-linux.sh`：它先通过 sudo 安装
-`requirements-apt.txt` 的系统依赖，再建立用户虚拟环境、安装 Python 依赖并执行音频自检。
+Debian/Ubuntu 推荐在项目目录运行 `bash scripts/install-linux.sh`：它先通过 sudo 安装
+`scripts/requirements-apt.txt` 的系统依赖，再在用户数据目录建立虚拟环境、安装 Python 依赖并执行音频自检。
 管理员密码只在本机 sudo 提示中输入。此脚本不会录音、上传音频或自动启用全局按键。
 
 需要 Python 3.10+。在项目目录执行：
 
 ```sh
-python -m venv .venv
 # Linux/macOS
-. .venv/bin/activate
-# Windows PowerShell 使用 .venv\Scripts\Activate.ps1
+python3 -m venv "$HOME/.local/share/voice-type/venv"
+. "$HOME/.local/share/voice-type/venv/bin/activate"
 python -m pip install -r requirements.txt
 voice-type-app
 ```
 
+Windows PowerShell：
+
+```powershell
+$voiceEnv = Join-Path $env:LOCALAPPDATA 'VoiceType\venv'
+py -m venv $voiceEnv
+& "$voiceEnv\Scripts\python.exe" -m pip install -r requirements.txt
+& "$voiceEnv\Scripts\voice-type-app.exe"
+```
+
+虚拟环境用于隔离源码运行的依赖，不必放在仓库里。完整桌面包自带运行时，无需虚拟环境。
+
 `requirements.txt` 引用项目自身，Python 依赖统一维护在 `pyproject.toml`，避免两份清单漂移。
 Linux 源码运行需要 PortAudio 和 Qt 系统库；Debian/Ubuntu 的完整安装清单见
-`requirements-apt.txt`，它供 apt 使用，不能传给 pip。其他发行版需用自己的包管理器安装对应库。
+`scripts/requirements-apt.txt`，它供 apt 使用，不能传给 pip。其他发行版需用自己的包管理器安装对应库。
 Windows/macOS 的 sounddevice wheel 通常自带 PortAudio。
 
 ## 首次运行
@@ -65,13 +75,13 @@ Windows/macOS 的 sounddevice wheel 通常自带 PortAudio。
 
 Windows/macOS 尚需真实系统验收，不能以 Linux 测试结果代替。
 旧 `voice_type.py`/`config.py`/`run.sh` 是本机兼容入口，不随新版发布。
-运行新版全局监听前应停掉旧服务或其他语音输入工具，避免两个实例同时录音。迁移见 [LEGACY.md](LEGACY.md)。
+运行新版全局监听前应停掉旧服务或其他语音输入工具，避免两个实例同时录音。迁移见 [旧版迁移](legacy.md)。
 
 ## 常见问题
 
 | 现象 | 检查方法 |
 | --- | --- |
-| 提示找不到 PortAudio / 无法枚举麦克风 | Linux 源码安装先运行 `bash install-linux.sh`；用 `voice-type-app --check-audio` 检查，完整二进制包使用 `./VoiceType/VoiceType --check-audio` |
+| 提示找不到 PortAudio / 无法枚举麦克风 | Linux 源码安装先运行 `bash scripts/install-linux.sh`；用 `voice-type-app --check-audio` 检查，完整二进制包使用 `./VoiceType/VoiceType --check-audio` |
 | 麦克风列表正常，但开始录音报设备被占用 | 停止其他录音应用/旧后台服务；点“停止测试”，再尝试窗口录音。枚举成功不代表能打开录音流 |
 | 按键没有反应，或侧键让浏览器后退 | 先点“保存并启用”并查看底部状态；重新录入实际按键，检查冲突和平台权限。旧脚本可能改过 X11 鼠标映射，不要照抄别人的按钮编号 |
 | 切到其他应用没有浮窗 | 设置页先预览位置，确认没有看错屏幕；再用全局键录音（窗口按钮不显示这类浮窗）。确认运行的是最新构建，不是旧后台实例 |
@@ -87,17 +97,22 @@ Windows/macOS 尚需真实系统验收，不能以 Linux 测试结果代替。
 
 测试麦克风只在本地处理。只有用户开始录音时才建立 ASR 连接并上传音频。
 程序不持久化录音或转写，不输出 API Key。云服务的数据政策由所选服务提供商负责。
-剪贴板、凭据库和卸载后的数据注意事项见 [SECURITY.md](SECURITY.md)。
+剪贴板、凭据库和卸载后的数据注意事项见 [SECURITY.md](../SECURITY.md)。
 
-开发命令在激活虚拟环境后、项目目录内执行（贡献代码建议使用 editable 安装）：
+开发可单独使用仓库外环境。在项目目录执行以下命令；测试直接加载 `src/`，无需 editable 安装：
 
 ```sh
-python -m pip install -e ".[dev]"
-python -m pytest -q
-python -m build --outdir dist/release
-python -m twine check dist/release/*
-python tests/check_distribution.py dist/release
+python3 -m venv "$HOME/.local/share/voice-type-dev/venv"
+. "$HOME/.local/share/voice-type-dev/venv/bin/activate"
+python -m pip install ".[dev]"
+python -B -m pytest -p no:cacheprovider -q
+python scripts/build.py
 ```
+
+构建脚本在用户缓存目录暂存源码，源码包、wheel、桌面包默认输出至用户缓存目录下
+`VoiceType/dist`（Linux 通常是 `~/.cache/VoiceType/dist`）；可用 `--output <目录>` 指定。
+编译缓存同样在仓库外。直接使用 pip 安装本地项目仍可能生成 `src/*.egg-info` 等元数据，
+这些不是源码，不应提交。源码调试可用 `PYTHONPATH=src python -B -m voicetype.app`。
 
 普通测试不会连接真实 ASR，也不需要 API Key。未提供隔离 X11 显示器时，X11 集成测试会跳过。
 Linux 可安装 `xvfb` 后运行以下命令；它仅向临时 X11 服务注入输入，不操作当前桌面：
@@ -118,28 +133,32 @@ xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' \
 | `src/voicetype/` | 新版 UI、设置、录音、ASR 和平台输入后端 |
 | `tests/` | 单元、协议、GUI、打包及隔离 X11 测试 |
 | `.github/workflows/desktop.yml` | 三平台检查和预览包构建，不会自动发布 Release |
-| `pyproject.toml` / `requirements*.txt` | 包元数据、Python 和 Linux 系统依赖 |
-| `voice-type.spec` / `desktop_entry.py` / `pyi_rth_portaudio.py` | PyInstaller 打包入口与 PortAudio 加载 |
-| `licenses/` / `THIRD_PARTY.md` | 第三方许可及分发注意事项 |
-| `.venv/` / `build/` / `dist/` | 本地环境和生成产物，不应提交到源码仓库 |
+| `pyproject.toml` / `requirements.txt` | 包元数据与 Python 依赖入口 |
+| `packaging/` | PyInstaller 配置、桌面入口与 PortAudio 加载 hook |
+| `scripts/` | Linux 安装脚本、系统依赖清单及构建入口 |
+| `docs/` | 使用、迁移与第三方分发说明 |
+| `licenses/` | 第三方许可材料 |
 
-旧本机脚本保留在原位置但由 `.gitignore` 和 `MANIFEST.in` 排除；不要把整个工作目录直接压缩发布。
-源码发布用 `python -m build` 产生的 sdist/wheel；桌面包则只归档本次构建生成的完整应用目录。
-自有代码采用 [MIT](LICENSE)。不要在发布准备时把开发预览号改成稳定版本号来代替验收。
+旧本机脚本和历史构建应备份到仓库外；不要把整个工作目录直接压缩发布。
+源码发布用构建脚本产生的 sdist/wheel；桌面包则只归档本次构建生成的完整应用目录。
+自有代码采用 [MIT](../LICENSE)。不要在发布准备时把开发预览号改成稳定版本号来代替验收。
 
 ## 构建桌面预览包
 
-在目标系统安装开发依赖后执行 `pyinstaller voice-type.spec`；Linux/Windows 运行
-`dist/VoiceType/VoiceType`（Windows 后缀 `.exe`），macOS 打开 `dist/VoiceType.app`。
+在目标系统安装开发依赖后执行 `python scripts/build.py`；在输出目录中，Linux/Windows 运行
+`VoiceType/VoiceType`（Windows 后缀 `.exe`），macOS 打开 `VoiceType.app`。
 必须保留完整目录，不能只复制可执行文件。无需额外安装 Python。
 传入 `--smoke-test` 会打开界面后自动退出，不录音、不联网、不注册全局按键。
+传入 `--check-tls` 离线检查包内 OpenSSL 和 CA 证书，不需要 Key；构建脚本和 CI 必须通过此检查。
+传入 `--check-asr` 使用已保存的 Key（或 `DASHSCOPE_API_KEY`）及已保存的区域/模型完成真实服务握手，
+不打开麦克风、不发送音频、不输出 Key。仅在希望联网验证时手动运行，不在 CI 中执行。
 传入 `--check-audio` 会验证 PortAudio 加载并列出输入设备，不打开录音流、不联网；
 音频组件加载失败时返回非零退出码。仅窗口启动通过不代表音频组件可用。
 Linux 预览包自带 PortAudio 并按包内绝对路径加载，不需要为它额外运行 apt 或安装编译工具。
 这不表示它适用于所有 Linux：仍需兼容的 glibc、图形会话和音频服务，应在目标发行版上验证。
-CI 为三个系统分别构建并运行此启动检查；配置已提供，远端尚未执行。
+CI 为三个系统分别构建并运行此启动检查；是否通过以对应提交的 Actions 结果为准，不代替真机验收。
 Linux 以 `*-preview.tar.gz`、Windows/macOS 以 `*-preview.zip` 保存完整应用；不要直接下载拆散的 Unix 可执行文件，归档用于保留执行权限和框架符号链接。
-依赖许可和正式分发前的检查见 THIRD_PARTY.md。
+依赖许可和正式分发前的检查见 [第三方分发说明](third-party.md)。
 
 公开源码前应检查包内文档链接、许可、依赖和敏感信息，并从干净环境安装 wheel 验证入口。
 公开二进制前还需核验对应平台功能、依赖许可/source 材料及签名/公证要求；不要上传过期预览包。

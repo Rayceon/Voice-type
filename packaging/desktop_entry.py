@@ -1,4 +1,4 @@
-"""Standalone bundler entry point (also works with python desktop_entry.py)."""
+"""Standalone bundler entry point; source users run python -m voicetype.app."""
 from voicetype.app import main
 
 if __name__ == "__main__":

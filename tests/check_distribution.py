@@ -3,6 +3,7 @@
 Run after `python -m build`: python tests/check_distribution.py dist
 """
 from pathlib import Path, PurePosixPath
+import posixpath
 import re
 import sys
 import tarfile
@@ -26,9 +27,10 @@ def audit(files: dict[str, bytes], *, source: bool) -> None:
         assert not re.search(rb"sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----", data), f"Possible secret: {name}"
         assert not re.search(rb"/home/[A-Za-z0-9_.-]+/", data), f"Author-specific path: {name}"
     if source:
-        required = {"README.md", "DESKTOP.md", "LEGACY.md", "SECURITY.md", "LICENSE", "THIRD_PARTY.md",
-                    "pyproject.toml", "requirements.txt", "requirements-apt.txt", "install-linux.sh",
-                    "MANIFEST.in", "voice-type.spec", "desktop_entry.py", "pyi_rth_portaudio.py",
+        required = {"README.md", "docs/usage.md", "docs/legacy.md", "SECURITY.md", "LICENSE", "docs/third-party.md",
+                    "pyproject.toml", "requirements.txt", "scripts/requirements-apt.txt", "scripts/install-linux.sh",
+                    "MANIFEST.in", "packaging/voice-type.spec", "packaging/desktop_entry.py", "packaging/pyi_rth_portaudio.py",
+                    "scripts/build.py",
                     "src/voicetype/app.py", "src/voicetype/ui.py", "tests/check_distribution.py",
                     ".github/workflows/desktop.yml", "licenses/README.md"}
         assert not (required - files.keys()), f"Missing source files: {sorted(required - files.keys())}"
@@ -39,7 +41,7 @@ def audit(files: dict[str, bytes], *, source: bool) -> None:
                 url = urlsplit(target)
                 if url.scheme or url.netloc or not url.path:
                     continue
-                resolved = (PurePosixPath(name).parent / unquote(url.path)).as_posix()
+                resolved = posixpath.normpath((PurePosixPath(name).parent / unquote(url.path)).as_posix())
                 assert resolved in files, f"Broken document link: {name} -> {target}"
     else:
         assert "voicetype/app.py" in files, "Wheel is missing the application"

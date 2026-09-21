@@ -25,15 +25,16 @@
 下载或克隆本项目后，进入项目目录运行：
 
 ```bash
-bash install-linux.sh
-.venv/bin/voice-type-app
+bash scripts/install-linux.sh
+"${XDG_DATA_HOME:-$HOME/.local/share}/voice-type/venv/bin/voice-type-app"
 ```
 
-安装脚本通过 `sudo` 安装系统依赖，在项目下创建 `.venv` 并安装 Python 包。
-请用普通用户执行，不要使用 `sudo bash install-linux.sh`。需要 Python 3.10+。
+安装脚本通过 `sudo` 安装系统依赖，Python 环境放在仓库外的用户数据目录
+（默认 `~/.local/share/voice-type/venv`），不会在项目内创建 `.venv`。
+请用普通用户执行，不要使用 `sudo bash scripts/install-linux.sh`。需要 Python 3.10+。
 安装过程不会录音或启用全局按键，也不会创建开机自启服务。
 
-系统依赖（包括 `libportaudio2`）在 [requirements-apt.txt](requirements-apt.txt)，
+系统依赖（包括 `libportaudio2`）在 [requirements-apt.txt](scripts/requirements-apt.txt)，
 Python 依赖由 [requirements.txt](requirements.txt) 引用 [pyproject.toml](pyproject.toml)。
 apt 包不能直接写进 pip 的 requirements 文件。
 
@@ -44,21 +45,23 @@ apt 包不能直接写进 pip 的 requirements 文件。
 Linux / macOS：
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/voice-type-app
+python3 -m venv "$HOME/.local/share/voice-type/venv"
+"$HOME/.local/share/voice-type/venv/bin/python" -m pip install -r requirements.txt
+"$HOME/.local/share/voice-type/venv/bin/voice-type-app"
 ```
 
 Windows PowerShell：
 
 ```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\voice-type-app.exe
+$voiceEnv = Join-Path $env:LOCALAPPDATA 'VoiceType\venv'
+py -3 -m venv $voiceEnv
+& "$voiceEnv\Scripts\python.exe" -m pip install -r requirements.txt
+& "$voiceEnv\Scripts\voice-type-app.exe"
 ```
 
 目前没有本项目已公开发布的安装包，也未发布到 PyPI；请勿把同名第三方包当成本项目。
-自行构建的预览包须完整解压，不能只复制可执行文件。详见 [桌面使用与开发指南](DESKTOP.md)。
+自行构建的预览包自带 Python 和依赖，运行时不需要 `.venv`；须完整解压，不能只复制可执行文件。
+详见 [桌面使用与开发指南](docs/usage.md)。
 
 ## 第一次使用
 
@@ -88,7 +91,7 @@ Linux/X11 上浮窗独立于主窗口，主窗口隐藏或最小化后仍可显�
 
 不承诺绕过系统保留键、安全输入框、管理员窗口或所有独占全屏应用的限制。
 本机曾做过真实 ASR 联通测试；自动化测试使用模拟音频/服务，不能代替不同设备和网络的验收。
-完整排障与测试方法见 [DESKTOP.md](DESKTOP.md)。
+完整排障与测试方法见 [使用指南](docs/usage.md)。
 
 ## 隐私与许可证
 
@@ -97,8 +100,8 @@ Linux/X11 上浮窗独立于主窗口，主窗口隐藏或最小化后仍可显�
 API Key 不写入设置 JSON，可选择系统凭据库保存，也可仅在本次运行使用。
 凭据保存、云端处理与问题反馈注意事项见 [SECURITY.md](SECURITY.md)。
 
-自有代码：[MIT](LICENSE)。依赖许可及二进制分发前的检查：[THIRD_PARTY.md](THIRD_PARTY.md)。
+自有代码：[MIT](LICENSE)。依赖许可及二进制分发前的检查：[第三方许可](docs/third-party.md)。
 当前二进制尚未完成完整许可材料核验、签名或公证，不能把源码开源等同于二进制正式发布。
 
-开发、测试、构建见 [DESKTOP.md](DESKTOP.md)；从本机旧脚本迁移见 [LEGACY.md](LEGACY.md)。
+开发、测试、构建见 [使用指南](docs/usage.md)；从本机旧脚本迁移见 [迁移参考](docs/legacy.md)。
 旧脚本不是新版安装入口，不随新版源码分发包或桌面包发布。
