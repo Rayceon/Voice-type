@@ -28,4 +28,4 @@ Voice Type 当前是开发预览软件，不适合未经评估就用于机密语
 涉及漏洞或凭据泄露时，请通过代码托管平台提供的私密安全报告渠道联系维护者（若已启用）；
 未有私密渠道时，可先公开请求联系方式，不要公开漏洞利用细节或密钥。
 
-自有代码许可见 [LICENSE](LICENSE)，第三方分发义务见 [THIRD_PARTY.md](THIRD_PARTY.md)。
+自有代码许可见 [LICENSE](LICENSE)，第三方分发义务见 [第三方许可](docs/third-party.md)。

@@ -15,7 +15,7 @@ def test_frozen_portaudio_lookup(monkeypatch, tmp_path, platform, present):
     monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
     original = lambda name: "system:" + name
     monkeypatch.setattr(ctypes.util, "find_library", original)
-    hook = Path(__file__).resolve().parents[1] / "pyi_rth_portaudio.py"
+    hook = Path(__file__).resolve().parents[1] / "packaging/pyi_rth_portaudio.py"
     runpy.run_path(str(hook))
     expected = str(library) if platform == "linux" and present else "system:portaudio"
     assert ctypes.util.find_library("portaudio") == expected

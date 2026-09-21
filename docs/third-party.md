@@ -1,4 +1,4 @@
-# Third-party components
+# Third-party components and distribution notices
 
 Voice Type's own code is MIT licensed. That license does not replace the licenses
 of its dependencies. The application does not modify the dependencies below.

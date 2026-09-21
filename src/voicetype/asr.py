@@ -14,6 +14,16 @@ import websocket
 from .settings import ENDPOINTS, Settings
 
 
+def check_tls() -> str:
+    """Offline check of the real TLS extension and bundled trust store."""
+    try:
+        import ssl
+        ssl.create_default_context(cafile=certifi.where())
+        return ssl.OPENSSL_VERSION
+    except Exception:
+        raise RuntimeError("TLS 加密组件或证书加载失败，请重新安装完整程序；这不是 API Key 错误。") from None
+
+
 class Transcript:
     """Keep all items in server order and replace partials with authoritative finals."""
 
@@ -81,6 +91,11 @@ class QwenSession:
 
     def start(self):
         self.check_error()
+        try:
+            check_tls()
+        except RuntimeError:
+            self.api_key = ""
+            raise
         url = ENDPOINTS[self.settings.region] + "?" + urlencode({"model": self.settings.model})
         try:
             ws = websocket.create_connection(

@@ -1,8 +1,8 @@
-# voice-type 旧版本机脚本
+# 旧版本机脚本迁移参考
 
 这份说明仅供已经使用过旧脚本的用户迁移参考；新用户直接阅读
-[README.md](README.md) 和 [DESKTOP.md](DESKTOP.md)，不要安装或启动旧服务。
-旧 `voice_type.py`、`config.py`、`run.sh`、`probe_button.py` 可保留在原本机目录，
+[README.md](../README.md) 和 [使用指南](usage.md)，不要安装或启动旧服务。
+旧 `voice_type.py`、`config.py`、`run.sh`、`probe_button.py` 应备份到源码仓库以外，
 但由 `.gitignore` 和 `MANIFEST.in` 排除，不随新版发布，也不会被新版自动迁移。
 
 ## 迁移到桌面版

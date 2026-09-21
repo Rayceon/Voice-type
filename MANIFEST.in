@@ -1,6 +1,9 @@
-include LICENSE README.md DESKTOP.md LEGACY.md SECURITY.md THIRD_PARTY.md pyproject.toml desktop_entry.py voice-type.spec
+include LICENSE README.md SECURITY.md pyproject.toml
 include .gitignore .gitattributes
-include pyi_rth_portaudio.py requirements.txt requirements-apt.txt install-linux.sh
+include requirements.txt
+recursive-include docs *.md
+recursive-include scripts *.py *.sh *.txt
+recursive-include packaging *.py *.spec
 recursive-include src/voicetype *.py
 recursive-include tests *.py
 recursive-include licenses *.txt *.md

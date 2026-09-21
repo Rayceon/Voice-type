@@ -20,7 +20,7 @@ jobs:
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' requirements-apt.txt | xargs sudo apt-get install -y
+          sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' scripts/requirements-apt.txt | xargs sudo apt-get install -y
           sudo apt-get install -y xvfb
       - if: runner.os == 'macOS'
         run: brew install portaudio
@@ -35,7 +35,16 @@ jobs:
       # Exercise the built wheel rather than only the source checkout.
       - run: python -c "import glob, subprocess, sys; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-deps', '--force-reinstall', *glob.glob('dist/*.whl')])"
       - run: python -m voicetype.app --smoke-test
-      - run: pyinstaller --noconfirm voice-type.spec
+      - run: pyinstaller --noconfirm packaging/voice-type.spec
+      - if: runner.os == 'Linux'
+        run: ./dist/VoiceType/VoiceType --check-tls
+      - if: runner.os == 'macOS'
+        run: ./dist/VoiceType.app/Contents/MacOS/VoiceType --check-tls
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath ./dist/VoiceType/VoiceType.exe -ArgumentList '--check-tls' -PassThru -Wait
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
       - if: runner.os == 'Linux'
         run: ./dist/VoiceType/VoiceType --check-audio
       - if: runner.os == 'Linux'

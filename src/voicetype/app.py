@@ -456,6 +456,28 @@ class Window(QMainWindow):
 
 
 def main():
+    if "--check-tls" in sys.argv or "--check-asr" in sys.argv:
+        # Explicit diagnostics: no GUI, microphone or global input hooks.
+        from .asr import QwenSession, check_tls
+        session = None
+        try:
+            print(f"TLS OK: {check_tls()}")
+            if "--check-asr" in sys.argv:
+                key = Credentials().get()
+                if not key:
+                    print("ASR check failed: no saved API Key or DASHSCOPE_API_KEY", file=sys.stderr)
+                    return 1
+                session = QwenSession(load(), key, lambda _: None)
+                session.start()
+                print("ASR OK: session.updated (no audio sent)")
+            return 0
+        except Exception as exc:
+            # Exception strings from dependencies can include credentials.
+            print(f"Connection check failed ({type(exc).__name__})", file=sys.stderr)
+            return 1
+        finally:
+            if session is not None:
+                session.close()
     if "--check-audio" in sys.argv:
         # Validate the actual packaged backend, without a window, recording or network.
         try:

@@ -25,9 +25,9 @@ def spec_notices(monkeypatch, tmp_path):
         raise Collected(kwargs["datas"])
 
     def collect():
-        spec = Path(__file__).resolve().parents[1] / "voice-type.spec"
+        spec = Path(__file__).resolve().parents[1] / "packaging/voice-type.spec"
         with pytest.raises(Collected) as captured:
-            runpy.run_path(str(spec), init_globals={"Analysis": analysis})
+            runpy.run_path(str(spec), init_globals={"Analysis": analysis, "SPECPATH": str(spec.parent)})
         return captured.value.args[0]
 
     return prefix, stdlib, collect
@@ -47,19 +47,28 @@ def test_missing_python_notice_blocks_bundle(spec_notices):
         spec_notices[2]()
 
 
+def test_stdlib_notice_preferred_over_distributor_license(spec_notices):
+    prefix, stdlib, collect = spec_notices
+    (prefix / "LICENSE.txt").write_text("distributor license", encoding="utf-8")
+    notice = stdlib / "LICENSE.txt"
+    notice.write_text("Python license", encoding="utf-8")
+    assert (str(notice), "licenses/python") in collect()
+
+
 def test_copyleft_notice_directory_is_bundled(spec_notices):
     (spec_notices[0] / "LICENSE.txt").write_text("test Python license", encoding="utf-8")
-    assert ("licenses", "licenses") in spec_notices[2]()
+    assert (str(Path(__file__).resolve().parents[1] / "licenses"), "licenses") in spec_notices[2]()
 
 
 def test_missing_linux_portaudio_blocks_build(spec_notices, monkeypatch):
     from types import SimpleNamespace
     (spec_notices[0] / "LICENSE.txt").write_text("test Python license", encoding="utf-8")
     monkeypatch.setattr(sys, "platform", "linux")
-    spec = Path(__file__).resolve().parents[1] / "voice-type.spec"
+    spec = Path(__file__).resolve().parents[1] / "packaging/voice-type.spec"
     with pytest.raises(RuntimeError, match="PortAudio"):
         runpy.run_path(str(spec), init_globals={
             "Analysis": lambda *args, **kwargs: SimpleNamespace(binaries=[]),
+            "SPECPATH": str(spec.parent),
         })
 
 
@@ -82,5 +91,50 @@ def test_release_audit_rejects_local_or_private_files(filename, contents):
 def test_public_usage_and_security_docs_are_bundled(spec_notices):
     (spec_notices[0] / "LICENSE.txt").write_text("test Python license", encoding="utf-8")
     notices = spec_notices[2]()
-    for name in ("README.md", "DESKTOP.md", "LEGACY.md", "SECURITY.md", "THIRD_PARTY.md"):
-        assert (name, ".") in notices
+    root = Path(__file__).resolve().parents[1]
+    for name in ("README.md", "SECURITY.md"):
+        assert (str(root / name), ".") in notices
+    assert (str(root / "docs"), "docs") in notices
+
+
+def test_linux_bundle_pins_interpreter_openssl(spec_notices, monkeypatch):
+    from types import SimpleNamespace
+    from PyInstaller.depend import bindepend
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(bindepend, "get_imports", lambda _: {
+        ("libssl.so.3", "/runtime/libssl.so.3"),
+        ("libcrypto.so.3", "/runtime/libcrypto.so.3"),
+    })
+    (spec_notices[0] / "LICENSE.txt").write_text("Python license", encoding="utf-8")
+    captured = {}
+
+    def analysis(*args, **kwargs):
+        captured["inputs"] = kwargs["binaries"]
+        return SimpleNamespace(pure=[], scripts=[], datas=[], binaries=[
+            ("libssl.so.3", "/system/libssl.so.3", "BINARY"),
+            ("libcrypto.so.3", "/system/libcrypto.so.3", "BINARY"),
+            ("libportaudio.so.2", "/system/libportaudio.so.2", "BINARY"),
+        ])
+
+    def collect(exe, binaries, datas, **kwargs):
+        captured["outputs"] = binaries
+
+    spec = Path(__file__).resolve().parents[1] / "packaging/voice-type.spec"
+    runpy.run_path(str(spec), init_globals={
+        "SPECPATH": str(spec.parent), "Analysis": analysis,
+        "PYZ": lambda *a, **k: None, "EXE": lambda *a, **k: None, "COLLECT": collect,
+    })
+    assert set(captured["inputs"]) == {("/runtime/libssl.so.3", "."), ("/runtime/libcrypto.so.3", ".")}
+    assert captured["outputs"][:2] == [
+        ("libssl.so.3", "/runtime/libssl.so.3", "BINARY"),
+        ("libcrypto.so.3", "/runtime/libcrypto.so.3", "BINARY"),
+    ]
+
+
+def test_unresolved_tls_dependency_blocks_build(spec_notices, monkeypatch):
+    from PyInstaller.depend import bindepend
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(bindepend, "get_imports", lambda _: {("libssl.so.3", None)})
+    (spec_notices[0] / "LICENSE.txt").write_text("Python license", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="Cannot resolve Python TLS"):
+        spec_notices[2]()
