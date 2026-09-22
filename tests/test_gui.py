@@ -191,6 +191,60 @@ def ui_window(monkeypatch):
     window.close()
 
 
+def test_hotwords_load_save_and_recording_snapshot(monkeypatch, tmp_path):
+    from voicetype.settings import load, save
+    app = QApplication.instance() or QApplication([])
+    path = tmp_path / "settings.json"
+    save(Settings(hotwords="旧热词", trigger="f9"), path)
+    monkeypatch.setattr(desktop, "load", lambda: load(path))
+    monkeypatch.setattr(desktop, "save", lambda settings: save(settings, path))
+    monkeypatch.setattr(desktop, "list_inputs", lambda: [])
+    monkeypatch.setattr(desktop, "resolve_input", lambda *args: None)
+    monkeypatch.setattr(desktop, "GlobalTrigger", lambda *args: SimpleNamespace(
+        start=lambda: None, stop=lambda: None))
+    sessions = []
+    def recording(settings, *args):
+        sessions.append(settings)
+        return SimpleNamespace(start=lambda: None, stop=lambda: None)
+    monkeypatch.setattr(desktop, "Recording", recording)
+    window = desktop.Window()
+    monkeypatch.setattr(window.credentials, "get", lambda: "fake-key")
+    try:
+        assert window.hotwords.toPlainText() == "旧热词"
+        window.hotwords.setPlainText(" 星尘智能\nVoice Type ")
+        window.enable_trigger()
+        assert load(path).hotwords == "星尘智能\nVoice Type"
+        assert load(path).trigger == "f9"
+        window.hotwords.setPlainText("未保存的词")
+        window.start_recording(False)
+        assert sessions[-1].hotwords == "星尘智能\nVoice Type"
+        window.on_event("finished", None)
+        window.start_recording(True)
+        assert sessions[-1].hotwords == "未保存的词"
+        window.hotwords.setPlainText("录音中的修改")
+        assert sessions[-1].hotwords == "未保存的词"
+        window.on_event("finished", None)
+        window.hotwords.clear()
+        window.enable_trigger()
+        assert load(path).hotwords == ""
+    finally:
+        window.recording = None
+        window.quitting = True
+        window.tray.hide()
+        window.close()
+
+
+def test_hotwords_over_limit_rejected_before_save(ui_window, monkeypatch):
+    from voicetype.settings import HOTWORDS_MAX_CHARS
+    saved = []
+    monkeypatch.setattr(desktop, "save", saved.append)
+    ui_window.hotwords.setPlainText("词" * (HOTWORDS_MAX_CHARS + 1))
+    ui_window.enable_trigger()
+    assert "热词最多" in ui_window.status.text()
+    assert not saved
+    assert ui_window.listener is None
+
+
 def test_page_navigation_preserves_draft_without_side_effects(ui_window):
     w = ui_window
     original = w.read_settings()
