@@ -13,7 +13,8 @@ from voicetype.settings import ENDPOINTS, Settings
 
 
 @pytest.mark.parametrize("fail", [False, True])
-def test_wire_and_error_propagation(monkeypatch, fail):
+@pytest.mark.parametrize("hotwords", ["", " \n\t", " 星尘智能\nVoice Type\nQwen "])
+def test_wire_and_error_propagation(monkeypatch, fail, hotwords):
     received = []
     failures = []
     def handler(ws):
@@ -42,7 +43,7 @@ def test_wire_and_error_propagation(monkeypatch, fail):
         thread.start()
         monkeypatch.setitem(ENDPOINTS, "中国大陆", f"ws://127.0.0.1:{server.socket.getsockname()[1]}")
         partials = []
-        session = QwenSession(Settings(), "fake-key", partials.append)
+        session = QwenSession(Settings(hotwords=hotwords), "fake-key", partials.append)
         try:
             session.start()
             session.feed(b"\x00\x00" * 3200)
@@ -56,7 +57,10 @@ def test_wire_and_error_propagation(monkeypatch, fail):
             assert received[0]["session"]["turn_detection"] is None
             assert received[0]["session"]["input_audio_format"] == "pcm"
             assert received[0]["session"]["sample_rate"] == 16000
-            assert received[0]["session"]["input_audio_transcription"] == {"language": "zh"}
+            expected = {"language": "zh"}
+            if hotwords.strip():
+                expected["corpus"] = {"text": hotwords.strip()}
+            assert received[0]["session"]["input_audio_transcription"] == expected
             chunk = next(e for e in received if e["type"] == "input_audio_buffer.append")
             assert len(base64.b64decode(chunk["audio"])) == 6400
         finally:

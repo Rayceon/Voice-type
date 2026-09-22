@@ -203,6 +203,7 @@ class Window(QMainWindow):
                            trigger=self.trigger.text().strip().lower(), activation=self.activation.currentData(),
                            region=self.region.currentText(), model=self.model.text().strip(),
                            language=self.language.currentData(), auto_paste=self.paste.isChecked(),
+                           hotwords=self.hotwords.toPlainText().strip(),
                            paste_shortcut=self.shortcut.currentData(), max_seconds=self.limit.value(),
                            indicator_position=self.indicator_position.currentData())
         settings.validate()

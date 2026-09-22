@@ -36,6 +36,27 @@ def test_unknown_settings_fields_ignored(tmp_path):
     assert load(path).trigger == "f9"
 
 
+def test_hotwords_persist_clear_and_old_config(tmp_path):
+    path = tmp_path / "settings.json"
+    path.write_text('{"trigger":"f9"}')
+    settings = load(path)
+    assert settings.hotwords == ""
+    settings.hotwords = "星尘智能\nVoice Type\nQwen"
+    save(settings, path)
+    assert load(path) == settings
+    settings.hotwords = ""
+    save(settings, path)
+    assert load(path).hotwords == ""
+    assert load(path).trigger == "f9"
+
+
+def test_hotwords_length_limit():
+    from voicetype.settings import HOTWORDS_MAX_CHARS
+    Settings(hotwords="词" * HOTWORDS_MAX_CHARS).validate()
+    with pytest.raises(ValueError, match="热词"):
+        Settings(hotwords="词" * (HOTWORDS_MAX_CHARS + 1)).validate()
+
+
 @pytest.mark.parametrize("position", ["bottom_center", "bottom_left", "bottom_right",
                                      "top_center", "top_left", "top_right"])
 def test_indicator_position_persists(tmp_path, position):
@@ -54,7 +75,7 @@ def test_indicator_old_config_default_and_invalid_value(tmp_path):
 
 @pytest.mark.parametrize("field,value", [("model", 123), ("auto_paste", "false"),
                                        ("max_seconds", True), ("device_name", []),
-                                       ("trigger", None), ("region", {})])
+                                       ("trigger", None), ("region", {}), ("hotwords", [])])
 def test_invalid_settings_types_rejected(field, value):
     settings = Settings()
     setattr(settings, field, value)

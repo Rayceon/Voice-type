@@ -60,6 +60,29 @@ Windows/macOS 的 sounddevice wheel 通常自带 PortAudio。
 刷新会停止本地麦克风测试并重建音频设备列表；录音/识别进行中不能刷新。枚举失败时保留原选择。
 设置位于系统用户配置目录（Linux 通常 `~/.config/VoiceType/settings.json`），不含 API Key。
 
+## 自定义热词
+
+在“设置 → 02 / 识别服务 → 自定义热词”中，建议每行输入一个专有名词或短语，例如：
+
+```text
+星尘智能
+Voice Type
+Qwen
+```
+
+点击“保存并启用”后，全局录音从下一次开始使用这些热词；窗口录音直接使用当前输入框内容。
+录音途中修改不会影响已开始的会话。清空后保存即可停用，旧版设置默认不使用热词。
+应用最多接受 2000 个字符（包括换行），超限会提示精简，不会静默截断。
+
+使用 Qwen Realtime 的 `input_audio_transcription.corpus.text` 上下文偏置能力，
+不是本地文本替换，也不保证每次都能命中。建议只填少量容易识别错误的词，避免大量无关内容。
+官方接口上限为 10000 tokens，本应用采用更小的字符上限；自定义模型需支持该字段。
+接口依据：[Qwen-ASR-Realtime 客户端事件](https://www.alibabacloud.com/help/en/model-studio/qwen-asr-realtime-client-events)。
+
+热词明文保存在本地设置，并在每次 ASR 会话建立时发送到所选区域的云服务；
+`--check-asr` 联网自检也会发送已保存的热词。保存设置和测试麦克风本身不会上传热词。
+请勿填写密钥或敏感信息，提交设置文件或截图前也应检查热词内容。
+
 ## 当前平台边界
 
 - Linux X11：原生抓取用户选择的录音键，触发事件不会进入目标应用，退出后自动释放。按住期间 X11 会占用相应键盘/鼠标，松开恢复；适用于按住说话，不用于同时按着录音键操作同一输入设备。
@@ -118,9 +141,14 @@ python scripts/build.py
 Linux 可安装 `xvfb` 后运行以下命令；它仅向临时 X11 服务注入输入，不操作当前桌面：
 
 ```bash
+xvfb-run -a python scripts/check_x11.py
 xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' \
   sh -c 'VOICE_TYPE_TEST_DISPLAY="$DISPLAY" python -m pytest -q'
 ```
+
+先安装 `scripts/requirements-apt.txt` 及测试工具 `xvfb`、`xauth`。
+预检通过 `ldd` 报告具体缺失的共享库，再实际加载 Qt xcb 插件；失败时输出插件加载日志。
+Qt 的 `xcb-cursor0` 提示也可能由其他 XCB 库缺失引发，不要只重复安装 cursor 包。
 
 裸 Xvfb/Xephyr 没有窗口管理器，浮窗层叠测试会跳过；其他全局按键和跨进程粘贴测试仍会运行。
 不要把 `VOICE_TYPE_TEST_DISPLAY` 设置成日常桌面。真实麦克风、云端服务和设备热插拔需要另外人工验收。

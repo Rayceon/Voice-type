@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QSizePolicy, QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
 )
 
-from .settings import ENDPOINTS, INDICATOR_POSITIONS
+from .settings import ENDPOINTS, HOTWORDS_MAX_CHARS, INDICATOR_POSITIONS
 
 
 class RecordingIndicator(QLabel):
@@ -95,6 +95,9 @@ QComboBox QAbstractItemView { background: white; color: #253641;
 QPlainTextEdit { background: white; border: none; font-size: 17px; padding: 4px;
     selection-background-color: #c5e7df; selection-color: #182e38; }
 QPlainTextEdit:focus { border: none; }
+QPlainTextEdit#hotwords { background: #fafcfd; border: 1px solid #cfd9de;
+    border-radius: 7px; font-size: 14px; padding: 8px; }
+QPlainTextEdit#hotwords:focus { border-color: #167d72; }
 QCheckBox { spacing: 8px; }
 QCheckBox::indicator { width: 16px; height: 16px; }
 QProgressBar { background: #d5e4df; border: none; border-radius: 3px; max-height: 6px; }
@@ -284,6 +287,16 @@ def build_interface(window, initial):
         w.language.addItem(title, code)
     w.language.setCurrentIndex(max(0, w.language.findData(w.settings.language)))
     field(cloud, "识别语言", w.language)
+    w.hotwords = QPlainTextEdit()
+    w.hotwords.setObjectName("hotwords")
+    w.hotwords.setPlainText(w.settings.hotwords)
+    w.hotwords.setPlaceholderText("每行一个词或短语，例如：\n星尘智能\nVoice Type\nQwen")
+    w.hotwords.setFixedHeight(112)
+    w.hotwords.setTabChangesFocus(True)
+    field(cloud, "自定义热词（可选）", w.hotwords)
+    cloud.addWidget(label(
+        f"建议每行一个专有名词，最多 {HOTWORDS_MAX_CHARS} 字符。点击「保存并启用」生效，清空可停用。"
+        "热词会保存到本地设置，并随识别发送到云端；仅辅助识别，不保证命中。", "muted"))
     w.key = QLineEdit()
     w.key.setEchoMode(QLineEdit.EchoMode.Password)
     w.key.setPlaceholderText("留空使用系统凭据库 / DASHSCOPE_API_KEY")

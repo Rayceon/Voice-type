@@ -115,9 +115,12 @@ class QwenSession:
             self.reader = threading.Thread(target=self._receive, args=(ws,), daemon=True,
                                            name="voice-type-asr")
             self.reader.start()
+        transcription = {"language": self.settings.language}
+        if self.settings.hotwords.strip():
+            transcription["corpus"] = {"text": self.settings.hotwords.strip()}
         self._send("session.update", session={
             "modalities": ["text"], "input_audio_format": "pcm", "sample_rate": 16000,
-            "input_audio_transcription": {"language": self.settings.language},
+            "input_audio_transcription": transcription,
             "turn_detection": None,
         })
         if not self.ready.wait(8):

@@ -19,6 +19,9 @@ INDICATOR_POSITIONS = {
     "top_center": "顶部中央", "top_left": "左上角", "top_right": "右上角",
 }
 
+# Product limit, deliberately below the provider's 10,000-token context budget.
+HOTWORDS_MAX_CHARS = 2000
+
 
 @dataclass
 class Settings:
@@ -33,6 +36,7 @@ class Settings:
     region: str = "中国大陆"
     model: str = "qwen3-asr-flash-realtime"
     language: str = "zh"
+    hotwords: str = ""
     max_seconds: int = 120
     indicator_position: str = "bottom_center"
 
@@ -54,6 +58,8 @@ class Settings:
             raise ValueError("粘贴快捷键无效。")
         if not self.model.strip() or not 5 <= self.max_seconds <= 600:
             raise ValueError("模型不能为空，录音上限须为 5–600 秒。")
+        if len(self.hotwords) > HOTWORDS_MAX_CHARS:
+            raise ValueError(f"自定义热词最多 {HOTWORDS_MAX_CHARS} 个字符，请精简后重试。")
         from .triggers import parse_trigger
         parse_trigger(self.trigger)
 

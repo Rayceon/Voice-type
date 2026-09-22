@@ -21,11 +21,14 @@ jobs:
         run: |
           sudo apt-get update
           sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' scripts/requirements-apt.txt | xargs sudo apt-get install -y
-          sudo apt-get install -y xvfb
+          sudo apt-get install -y xvfb xauth
       - if: runner.os == 'macOS'
         run: brew install portaudio
       - run: python -m pip install --upgrade pip
       - run: python -m pip install ".[dev]"
+      - name: Validate Linux Qt xcb runtime
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python scripts/check_x11.py
       - run: python -m pytest -q
       - if: runner.os == 'Linux'
         run: xvfb-run -a -s '-screen 0 1280x1024x24 -noreset' sh -c 'VOICE_TYPE_TEST_DISPLAY="$DISPLAY" python -m pytest tests/test_x11.py -q'
