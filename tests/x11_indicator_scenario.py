@@ -80,17 +80,20 @@ def probe():
             QTest.qWait(200)
             native = connection.create_resource_object("window", int(indicator.winId()))
             mapped = native.get_attributes().map_state == X.IsViewable
+            from Xlib.ext import shape
+            click_through = not native.shape_get_rectangles(shape.SK.Input).rectangles
             rect = indicator.geometry()
             screen = app.screenAt(rect.center()) or app.primaryScreen()
             # QScreen.grabWindow(0) uses coordinates relative to that screen.
             origin = screen.geometry().topLeft()
-            pixel = screen.grabWindow(0, rect.left() - origin.x() + 12,
-                                      rect.top() - origin.y() + 12, 1, 1).toImage().pixelColor(0, 0)
-            above = pixel.name() == "#163c38"
+            pixel = screen.grabWindow(0, rect.left() - origin.x() + 16,
+                                      rect.center().y() - origin.y(), 1, 1).toImage().pixelColor(0, 0)
+            above = pixel.red() < 90 and pixel.green() < 110 and pixel.blue() < 130
             kept_focus = connection.get_input_focus().focus.id == target_id
-            result = dict(state=state, mapped=mapped, visible_above_other_app=above, focus_preserved=kept_focus)
+            result = dict(state=state, mapped=mapped, visible_above_other_app=above,
+                          focus_preserved=kept_focus, click_through=click_through)
             print(json.dumps(result), flush=True)
-            assert mapped and above and kept_focus, result
+            assert mapped and above and kept_focus and click_through, result
     finally:
         indicator.hide()
         owner.close()

@@ -1,4 +1,4 @@
-include LICENSE README.md SECURITY.md pyproject.toml
+include LICENSE README.md SECURITY.md pyproject.toml Makefile
 include .gitignore .gitattributes
 include requirements.txt
 recursive-include docs *.md
