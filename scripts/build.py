@@ -23,7 +23,7 @@ def main():
     # so neither these files nor local credentials enter the working checkout.
     with tempfile.TemporaryDirectory(prefix="source-", dir=work) as temporary:
         staged = Path(temporary)
-        for name in ("LICENSE", "README.md", "SECURITY.md", "pyproject.toml", "MANIFEST.in",
+        for name in ("LICENSE", "README.md", "SECURITY.md", "pyproject.toml", "MANIFEST.in", "Makefile",
                      ".gitignore", ".gitattributes", "requirements.txt"):
             shutil.copy2(root / name, staged / name)
         for name in ("src", "docs", "licenses", "scripts", "packaging", "tests", ".github"):

@@ -29,7 +29,7 @@ def audit(files: dict[str, bytes], *, source: bool) -> None:
     if source:
         required = {"README.md", "docs/usage.md", "docs/legacy.md", "SECURITY.md", "LICENSE", "docs/third-party.md",
                     "pyproject.toml", "requirements.txt", "scripts/requirements-apt.txt", "scripts/install-linux.sh",
-                    "MANIFEST.in", "packaging/voice-type.spec", "packaging/desktop_entry.py", "packaging/pyi_rth_portaudio.py",
+                    "MANIFEST.in", "Makefile", "scripts/install-desktop.py", "packaging/voice-type.spec", "packaging/desktop_entry.py", "packaging/pyi_rth_portaudio.py",
                     "scripts/build.py", "scripts/check_x11.py",
                     "src/voicetype/app.py", "src/voicetype/ui.py", "tests/check_distribution.py",
                     ".github/workflows/desktop.yml", "licenses/README.md"}

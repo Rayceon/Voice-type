@@ -26,14 +26,15 @@
 下载或克隆本项目后，进入项目目录运行：
 
 ```bash
-bash scripts/install-linux.sh
-"${XDG_DATA_HOME:-$HOME/.local/share}/voice-type/venv/bin/voice-type-app"
+make install
 ```
 
-安装脚本通过 `sudo` 安装系统依赖，Python 环境放在仓库外的用户数据目录
+安装脚本仅在缺少系统依赖时通过 `sudo` 安装，Python 环境放在仓库外的用户数据目录
 （默认 `~/.local/share/voice-type/venv`），不会在项目内创建 `.venv`。
-请用普通用户执行，不要使用 `sudo bash scripts/install-linux.sh`。需要 Python 3.10+。
-安装过程不会录音或启用全局按键，也不会创建开机自启服务。
+请用普通用户执行 `make install`，不要使用 `sudo make install`。需要 Python 3.10+ 和 `make`。
+安装后自动启动，并添加应用菜单入口与桌面登录自启动。首次使用打开设置窗口；
+已有可用配置和已保存的 API Key 时，自动启用录音键并驻留托盘，不会自行录音。
+后续可从应用菜单或托盘打开同一窗口。重复安装后，若旧版本仍在运行，请从托盘退出后重新打开。
 
 系统依赖（包括 `libportaudio2`）在 [requirements-apt.txt](scripts/requirements-apt.txt)，
 Python 依赖由 [requirements.txt](requirements.txt) 引用 [pyproject.toml](pyproject.toml)。
@@ -76,8 +77,10 @@ py -3 -m venv $voiceEnv
 Linux/X11 上浮窗独立于主窗口，主窗口隐藏或最小化后仍可显示。
 这是位置预设，不是拖动定位；其他桌面的置顶效果仍需验证。
 
-每次启动后需要点击“保存并启用”注册录音键。关闭窗口仅在系统支持托盘时会保留后台运行；
-不支持托盘时关闭即退出，可改用最小化。此版本不自动配置登录自启。
+首次配置后点击“保存并启用”；之后启动时自动恢复已保存的配置。若 API Key 仅保存在本次进程中，
+下次启动仍需重新填写。关闭窗口只隐藏到托盘，录音键继续可用；托盘菜单“退出”才结束后台进程。
+没有系统托盘时，关闭窗口改为最小化，可用窗口内的“退出”按钮结束进程。
+通过 `make install` 安装后，每次登录桌面自动启动；从托盘退出后不会在本次会话中自动重启。
 
 识别结果会替换系统剪贴板，**不恢复旧剪贴板**。默认粘贴键在 macOS 为 ⌘V，其他系统为 Ctrl+V；
 终端通常需要在设置中改为 Ctrl+Shift+V。窗口录音不自动向其他应用粘贴。

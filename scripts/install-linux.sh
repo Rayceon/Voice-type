@@ -12,8 +12,16 @@ if ! command -v apt-get >/dev/null || ! command -v sudo >/dev/null; then
     exit 1
 fi
 mapfile -t voice_apt_packages < <(sed '/^[[:space:]]*#/d; /^[[:space:]]*$/d' "$voice_root/scripts/requirements-apt.txt")
-sudo apt-get update
-sudo apt-get install --yes --no-install-recommends "${voice_apt_packages[@]}"
+voice_missing=()
+for voice_package in "${voice_apt_packages[@]}"; do
+    if ! dpkg-query -W -f='${db:Status-Status}\n' "$voice_package" 2>/dev/null | grep -qx installed; then
+        voice_missing+=("$voice_package")
+    fi
+done
+if (( ${#voice_missing[@]} )); then
+    sudo apt-get update
+    sudo apt-get install --yes --no-install-recommends "${voice_missing[@]}"
+fi
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else "Python 3.10+ is required")'
 cd -- "$voice_root"
 if [[ ! -e "$voice_env" ]]; then
@@ -25,4 +33,4 @@ if [[ ! -x "$voice_env/bin/python" ]]; then
 fi
 "$voice_env/bin/python" -m pip install -r requirements.txt
 "$voice_env/bin/voice-type-app" --check-audio
-printf 'Installed. Start the desktop app with: %q\n' "$voice_env/bin/voice-type-app"
+"$voice_env/bin/python" "$voice_root/scripts/install-desktop.py" "$voice_env/bin/voice-type-app"

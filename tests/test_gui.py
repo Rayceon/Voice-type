@@ -186,6 +186,7 @@ def ui_window(monkeypatch):
     app.processEvents()
     yield window
     window.recording = None
+    window.indicator.hide()
     window.quitting = True
     window.tray.hide()
     window.close()
@@ -462,3 +463,132 @@ def test_indicator_independent_of_main_window(ui_window):
     QApplication.processEvents()
     assert w.indicator.isVisible()
     w.indicator.hide()
+
+
+@pytest.mark.parametrize("name", ["device", "activation", "region", "language", "shortcut", "indicator_position", "limit"])
+@pytest.mark.parametrize("focused", [False, True])
+def test_settings_wheel_scrolls_page_without_changing_value(ui_window, name, focused):
+    from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QComboBox
+    w = ui_window
+    w.pages.setCurrentIndex(1)
+    widget = getattr(w, name)
+    if isinstance(widget, QComboBox):
+        widget.setCurrentIndex(1)
+        value = widget.currentIndex
+    else:
+        value = widget.value
+    w.settings_scroll.ensureWidgetVisible(widget)
+    widget.setFocus() if focused else w.enable.setFocus()
+    QApplication.processEvents()
+    bar = w.settings_scroll.verticalScrollBar()
+    before_scroll, before_value = bar.value(), value()
+    delta = 120 if before_scroll else -120
+    QTest.wheelEvent(w.windowHandle(), widget.mapTo(w, widget.rect().center()), QPoint(0, delta))
+    QApplication.processEvents()
+    assert value() == before_value
+    assert bar.value() != before_scroll
+
+
+@pytest.mark.parametrize('tray_available', [True, False])
+def test_close_keeps_global_service_until_explicit_quit(ui_window, monkeypatch, tray_available):
+    w = ui_window
+    calls = []
+    monkeypatch.setattr(desktop.QSystemTrayIcon, 'isSystemTrayAvailable', lambda: tray_available)
+    w.listener = SimpleNamespace(stop=lambda: calls.append('stop'))
+    assert not w.close()
+    QApplication.processEvents()
+    assert not w.quitting and w.listener is not None
+    assert calls == []
+    assert not w.isVisible() if tray_available else w.isMinimized()
+    w.show_window()
+    assert w.isVisible() and not w.isMinimized()
+    w.tray.contextMenu().actions()[-1].trigger()
+    assert w.quitting and w.listener is None and not w.tray.isVisible()
+    assert calls == ['stop']
+
+
+@pytest.mark.parametrize('condition', ['saved', 'first_run', 'missing_key', 'hook_failure'])
+def test_background_start_restores_only_saved_setup(ui_window, monkeypatch, condition):
+    w = ui_window
+    w.hide()
+    calls = []
+    w.settings_loaded = condition != 'first_run'
+    monkeypatch.setattr(desktop.QSystemTrayIcon, 'isSystemTrayAvailable', lambda: True)
+    monkeypatch.setattr(w.credentials, 'get', lambda: '' if condition == 'missing_key' else 'fake-key')
+    monkeypatch.setattr(desktop, 'resolve_input', lambda *args: None)
+    monkeypatch.setattr(desktop, 'save', lambda *_: pytest.fail('Startup must not rewrite settings'))
+    def start():
+        calls.append('start')
+        if condition == 'hook_failure':
+            raise RuntimeError('hook unavailable')
+    monkeypatch.setattr(desktop, 'GlobalTrigger', lambda *args: SimpleNamespace(
+        start=start, stop=lambda: calls.append('stop')))
+    w.start(background=True)
+    assert (w.listener is not None) == (condition == 'saved')
+    assert w.isVisible() == (condition != 'saved')
+    assert calls == ({'saved': ['start'], 'hook_failure': ['start', 'stop']}.get(condition, []))
+    if condition == 'hook_failure':
+        assert 'hook unavailable' in w.status.text()
+    w.quit()
+
+
+def test_selector_keyboard_and_popup_still_work(ui_window):
+    w = ui_window
+    w.pages.setCurrentIndex(1)
+    w.language.setCurrentIndex(0)
+    w.settings_scroll.ensureWidgetVisible(w.language)
+    w.language.setFocus()
+    QTest.keyClick(w.language, Qt.Key.Key_Down)
+    assert w.language.currentIndex() == 1
+    w.language.showPopup()
+    QApplication.processEvents()
+    assert w.language.view().isVisible()
+    QTest.keyClick(w.language.view(), Qt.Key.Key_Down)
+    QTest.keyClick(w.language.view(), Qt.Key.Key_Return)
+    assert w.language.currentIndex() == 2
+
+
+def test_indicator_audio_clock_and_animation_lifecycle(ui_window):
+    w = ui_window
+    w.recording = object()
+    w.manual_recording = False
+    w.on_event('state', '录音中 · Test microphone')
+    assert w.indicator.state == 'recording'
+    assert w.indicator.motion.isActive()
+    w.indicator.record_clock = SimpleNamespace(elapsed=lambda: 65000, isValid=lambda: True)
+    w.on_event('level', 81)
+    w.indicator.tick()
+    assert w.indicator.elapsed_label.text() == '01:05'
+    assert max(w.indicator.bars) > 0
+    # Repeated status messages must not reset the recording clock.
+    w.on_event('state', '录音中 · Test microphone')
+    w.indicator.tick()
+    assert w.indicator.elapsed_label.text() == '01:05'
+    w.on_event('state', '识别收尾中…')
+    assert w.indicator.state == 'processing'
+    w.on_event('level', 99)
+    assert not any(w.indicator.levels)
+    w.on_event('error', '<connection failed>')
+    assert w.indicator.state == 'error'
+    assert w.indicator.detail.text() == '<connection failed>'
+    assert w.indicator.detail.textFormat() == Qt.TextFormat.PlainText
+    assert not w.indicator.motion.isActive()
+    w.indicator.hide()
+    assert not w.indicator.motion.isActive() and not w.indicator.dismiss.isActive()
+    w.indicator.set_level(100)
+    assert not any(w.indicator.levels)
+
+
+def test_indicator_preview_never_uses_microphone_levels(ui_window):
+    w = ui_window
+    w.preview_indicator.click()
+    w.on_event('level', 100)
+    assert w.indicator.state == 'preview'
+    assert not any(w.indicator.levels)
+    w.indicator.tick()
+    assert max(w.indicator.bars) > 0
+    assert '不使用麦克风' in w.indicator.detail.text()
+    assert w.recording is None
+    w.indicator.hide()
+    assert not w.indicator.motion.isActive()

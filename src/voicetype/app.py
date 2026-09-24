@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import os
 import sys
 from .devices import audio_backend, input_format, level, list_inputs, rescan_inputs, resolve_input
@@ -12,6 +13,7 @@ from .ui import RecordingIndicator, build_interface
 
 from PySide6.QtCore import QObject, QLockFile, Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QKeyEvent, QMouseEvent
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import (
     QApplication, QDialog, QDialogButtonBox, QLabel, QMainWindow, QMenu,
     QMessageBox, QStyle, QSystemTrayIcon, QVBoxLayout,
@@ -130,8 +132,10 @@ class Window(QMainWindow):
         self.recording_settings = None
         self.quitting = False
         self.credentials = Credentials()
+        self.settings_loaded = False
         try:
             self.settings = load()
+            self.settings_loaded = config_path().is_file()
             initial = "选择麦克风、录音键并填写 API Key，然后启用语音输入。"
         except (ValueError, TypeError, OSError) as exc:
             self.settings = Settings()
@@ -149,15 +153,30 @@ class Window(QMainWindow):
         self.tray.setToolTip("Voice Type")
         menu = QMenu(self)
         show = QAction("打开 Voice Type", self)
-        show.triggered.connect(self.show)
+        show.triggered.connect(self.show_window)
         quit_action = QAction("退出", self)
         quit_action.triggered.connect(self.quit)
         menu.addAction(show)
         menu.addAction(quit_action)
         self.tray.setContextMenu(menu)
-        self.tray.activated.connect(lambda reason: self.show() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
-        if QSystemTrayIcon.isSystemTrayAvailable():
-            self.tray.show()
+        self.tray.activated.connect(lambda reason: self.show_window() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+        self.quit_button.setVisible(not QSystemTrayIcon.isSystemTrayAvailable())
+        self.tray.show()
+
+    def show_window(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+        self.quit_button.setVisible(not QSystemTrayIcon.isSystemTrayAvailable())
+
+    def start(self, background=False):
+        if self.settings_loaded:
+            self.enable_trigger(persist=False)
+        else:
+            self.pages.setCurrentIndex(1)
+            self.navigation.button(1).setChecked(True)
+        if not (background and self.listener and QSystemTrayIcon.isSystemTrayAvailable()):
+            self.show_window()
 
     def refresh_devices(self, rescan=False):
         if self.recording:
@@ -247,7 +266,7 @@ class Window(QMainWindow):
             self.stop_test()
             self.status.setText("无法打开麦克风，请检查设备权限或选择其他设备。")
 
-    def enable_trigger(self):
+    def enable_trigger(self, *, persist=True):
         if self.recording:
             return
         self.stop_test()
@@ -261,12 +280,18 @@ class Window(QMainWindow):
                 message = ""
             if not self.credentials.get():
                 raise ValueError("请填写 API Key，或设置 DASHSCOPE_API_KEY 环境变量。")
-            save(settings)
+            if persist:
+                save(settings)
+                self.settings_loaded = True
             self.settings = settings
             self.disable_trigger()
             self.listener = GlobalTrigger(settings.trigger, self.events.trigger.emit,
                                           lambda text: self.events.event.emit("state", message + text))
-            self.listener.start()
+            try:
+                self.listener.start()
+            except Exception:
+                self.disable_trigger()
+                raise
         except Exception as exc:
             self.status.setText(str(exc) if isinstance(exc, (ValueError, RuntimeError)) else
                                 "启用失败，请检查设置和系统输入监控/辅助功能权限。")
@@ -320,12 +345,12 @@ class Window(QMainWindow):
             self.enable.setEnabled(False)
             self.status.setText("正在打开麦克风…")
             if not manual:
-                self.indicator.present("正在打开麦克风…")
+                self.indicator.present("正在打开麦克风…", state="starting")
             self.recording.start()
         except (ValueError, RuntimeError) as exc:
             self.status.setText(str(exc))
             if not manual:
-                self.indicator.present(str(exc), dismiss_ms=5000)
+                self.indicator.present(str(exc), dismiss_ms=5000, state="error")
 
     def stop_recording(self):
         if self.recording:
@@ -333,7 +358,7 @@ class Window(QMainWindow):
             self.record.setEnabled(False)
             self.status.setText("识别收尾中…")
             if not self.manual_recording:
-                self.indicator.present("识别收尾中…")
+                self.indicator.present("识别收尾中…", state="processing")
 
     @Slot(str, object)
     def on_event(self, kind, value):
@@ -347,14 +372,18 @@ class Window(QMainWindow):
                 if kind == "state" and str(value).startswith("录音中"):
                     hint = (f"\n松开 {self.settings.trigger} 结束" if self.settings.activation == "hold"
                             else f"\n再按一次 {self.settings.trigger} 结束")
-                self.indicator.present(str(value) + hint, dismiss_ms=5000 if kind == "error" else 0)
+                state = "error" if kind == "error" else "recording" if hint else "processing"
+                self.indicator.present(str(value) + hint, dismiss_ms=5000 if kind == "error" else 0, state=state)
         elif kind == "level":
             self.meter.setValue(value)
+            if self.recording and not self.manual_recording:
+                self.indicator.set_level(value)
         elif kind in {"partial", "result"}:
             self.result.setPlainText(value)
             if kind == "result":
                 if not self.manual_recording:
-                    self.indicator.present("识别完成" if value else "没有识别到文字", dismiss_ms=2500)
+                    self.indicator.present("识别完成" if value else "没有识别到文字", dismiss_ms=2500,
+                                           state="success" if value else "empty")
                 self.status.setText("识别完成，可复制结果。" if value else "没有识别到文字。")
                 if value and self.recording_settings.auto_paste:
                     QApplication.clipboard().setText(value)
@@ -437,14 +466,23 @@ class Window(QMainWindow):
         super().hideEvent(event)
 
     def closeEvent(self, event: QCloseEvent):
-        if self.tray.isVisible() and not self.quitting:
-            self.hide()
-            event.ignore()
-        else:
-            self.quit()
+        if self.quitting:
             event.accept()
+            return
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.hide()
+        else:
+            self.stop_test()
+            if self.recording and self.manual_recording:
+                self.stop_recording()
+            self.showMinimized()
+            self.quit_button.show()
+            self.status.setText("系统托盘不可用，已最小化并继续后台运行；需要停止时点击「退出」。")
+        event.ignore()
 
     def quit(self):
+        if self.quitting:
+            return
         self.quitting = True
         self.indicator.hide()
         self.disable_trigger()
@@ -454,6 +492,33 @@ class Window(QMainWindow):
             self.recording.thread.join(1)
         self.tray.hide()
         QApplication.quit()
+
+
+def notify_instance(name, background=False):
+    socket = QLocalSocket()
+    socket.connectToServer(name)
+    if not socket.waitForConnected(2000):
+        return False
+    socket.write(b"background\n" if background else b"show\n")
+    sent = socket.waitForBytesWritten(2000)
+    socket.disconnectFromServer()
+    return sent
+
+
+def accept_instance(server, window):
+    while server.hasPendingConnections():
+        socket = server.nextPendingConnection()
+        socket.setParent(server)
+        socket.disconnected.connect(socket.deleteLater)
+
+        def receive(socket=socket):
+            if socket.canReadLine():
+                if bytes(socket.readLine(32)).strip() == b"show":
+                    window.show_window()
+                socket.disconnectFromServer()
+
+        socket.readyRead.connect(receive)
+        receive()
 
 
 def main():
@@ -497,22 +562,39 @@ def main():
             return 1
     smoke = "--smoke-test" in sys.argv
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("VoiceType")
     app.setOrganizationName("VoiceType")
     path = config_path().parent
     path.mkdir(parents=True, exist_ok=True)
     lock = QLockFile(str(path / "app.lock"))
+    server_name = "voice-type-" + hashlib.sha256(str(path.resolve()).encode()).hexdigest()[:24]
     if not lock.tryLock(0):
-        QMessageBox.information(None, "Voice Type", "Voice Type 已在运行，请从系统托盘打开。")
-        return 0
+        if notify_instance(server_name, background="--background" in sys.argv):
+            return 0
+        QMessageBox.information(None, "Voice Type", "无法打开已运行的 Voice Type，请从系统托盘打开，或退出旧版本后重新启动。")
+        return 1
+    server = QLocalServer()
+    server.setSocketOptions(QLocalServer.SocketOption.UserAccessOption)
+    QLocalServer.removeServer(server_name)  # Only the lock owner can remove a stale socket.
+    if not server.listen(server_name):
+        QMessageBox.critical(None, "Voice Type", "无法创建本地应用通信入口，请检查用户运行目录权限。")
+        lock.unlock()
+        return 1
     window = Window()
-    window.show()
+    server.newConnection.connect(lambda: accept_instance(server, window))
     if smoke:
         # Launch/render/exit only: no recording, credentials lookup, or global hooks.
+        window.show()
         QTimer.singleShot(500, window.quit)
-    result = app.exec()
-    lock.unlock()
-    return result
+    else:
+        QTimer.singleShot(0, lambda: window.start(background="--background" in sys.argv))
+    try:
+        return app.exec()
+    finally:
+        window.quit()
+        server.close()
+        lock.unlock()
 
 
 if __name__ == "__main__":
